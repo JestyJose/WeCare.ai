@@ -6,8 +6,17 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 dotenv.config();
 
 const app = express();
-app.use(cors());
+
+// CORS Configuration — restrict in production via CORS_ORIGIN env var
+const corsOptions = process.env.CORS_ORIGIN
+    ? { origin: process.env.CORS_ORIGIN.split(','), credentials: true }
+    : {};
+app.use(cors(corsOptions));
 app.use(express.json());
+
+// Health check endpoints for deployment platforms
+app.get('/', (req, res) => res.json({ status: 'ok', service: 'WeCare.ai Backend' }));
+app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 
 // Initialize Gemini API
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -15,7 +24,7 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 app.post('/api/analyze', async (req, res) => {
     try {
         const { age, history, symptoms } = req.body;
-        
+
         const prompt = `You are a medical AI assistant for triage and safety for a hackathon project. 
         Analyze the following patient data to detect potential health issues or safety hazards. 
         This is for educational purposes and not real medical advice.
@@ -32,20 +41,20 @@ app.post('/api/analyze', async (req, res) => {
           "safetyHazard": "Yes/No with brief explanation"
         }`;
 
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+        const model = genAI.getGenerativeModel({ model: "gemini-3.6-flash" });
         const result = await model.generateContent(prompt);
         const response = await result.response;
         const textResponse = response.text();
-        
+
         // Strip out markdown if Gemini returns it
         const cleanJson = textResponse.replace(/```json\n?|```/g, '').trim();
         const jsonResult = JSON.parse(cleanJson);
-        
+
         res.json(jsonResult);
     } catch (error) {
         console.error("Error analyzing symptoms:", error);
-        res.status(500).json({ 
-            error: error.message ? `AI Error: ${error.message}` : "Failed to analyze symptoms. Ensure GEMINI_API_KEY is set in backend/.env" 
+        res.status(500).json({
+            error: error.message ? `AI Error: ${error.message}` : "Failed to analyze symptoms. Ensure GEMINI_API_KEY is set in backend/.env"
         });
     }
 });
